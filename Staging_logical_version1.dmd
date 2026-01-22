@@ -1,8 +1,0 @@
-<?xml version = '1.0' encoding = 'UTF-8'?>
-<OSDM_Design class="oracle.dbtools.crest.model.design.Design" name="Staging_logical_version1" id="2204EBEE-9707-1EC9-E357-D23F973C22CB" version="3.5">
-<createdBy>Dima</createdBy>
-<createdTime>2025-11-05 14:19:23 UTC</createdTime>
-<ownerDesignName>test1</ownerDesignName>
-<capitalNames>false</capitalNames>
-<designId>2204EBEE-9707-1EC9-E357-D23F973C22CB</designId>
-</OSDM_Design>
