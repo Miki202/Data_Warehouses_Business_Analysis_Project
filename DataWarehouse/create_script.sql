@@ -529,6 +529,71 @@
 --     balance NUMERIC(12,2)
 -- );
 
+-- ALTER TABLE dw.fact_transaction
+-- ADD COLUMN k_symbol_key BIGINT;
+
+-- ALTER TABLE dw.fact_transaction
+-- ADD CONSTRAINT fk_fact_k_symbol
+-- FOREIGN KEY (k_symbol_key)
+-- REFERENCES dw.dim_k_symbol(k_symbol_key);
+
+-- ALTER TABLE dw.fact_transaction
+-- ADD COLUMN etl_insert_ts TIMESTAMP DEFAULT now(),
+-- ADD COLUMN etl_batch_id INT;
+
+-- INSERT INTO dw.fact_transaction (
+--     trans_id,
+--     account_key,
+--     client_key,
+--     district_key,
+--     transaction_type_key,
+--     k_symbol_key,
+--     date_key,
+--     amount,
+--     signed_amount,
+--     balance,
+--     etl_insert_ts,
+--     etl_batch_id
+-- )
+-- SELECT
+--     st.trans_id,
+--     a.account_key,
+--     c.client_key,
+--     a.district_key,
+--     tt.transaction_type_key,
+--     ks.k_symbol_key,
+--     dd.date_key,
+--     st.amount,
+--     st.signed_amount,
+--     st.balance,
+--     now(),
+--     1
+-- FROM staging.stg_transaction st
+-- JOIN dw.dim_account a
+--     ON st.account_id = a.account_id
+-- JOIN staging.stg_disposition sd
+--     ON sd.account_id = st.account_id
+--    AND sd.type = 'OWNER'
+-- JOIN dw.dim_client c
+--     ON sd.client_id = c.client_id
+-- JOIN dw.dim_transactiontype tt
+--     ON st.operation = tt.operation
+-- JOIN dw.dim_date dd
+--     ON st.transaction_date = dd.full_date
+-- LEFT JOIN dw.dim_k_symbol ks
+--     ON st.k_symbol = ks.k_symbol_code
+-- WHERE st.transaction_date >= DATE '1997-01-01'
+--   AND st.transaction_date <  DATE '1998-01-01';
+
+-- CREATE INDEX idx_fact_transaction_date
+--     ON dw.fact_transaction(date_key);
+
+-- CREATE INDEX idx_fact_transaction_k_symbol
+--     ON dw.fact_transaction(k_symbol_key);
+
+-- CREATE INDEX idx_fact_transaction_type
+--     ON dw.fact_transaction(transaction_type_key);
+
 -- INSERT INTO dw.fact_transaction (
 --     trans_id, account_key, client_key, district_key, transaction_type_key, date_key,
 --     amount, signed_amount, balance
@@ -613,6 +678,28 @@
 -- JOIN dw.dim_account da ON dc.disp_id = da.account_key
 -- JOIN dw.dim_client dcl ON dc.disp_id = dcl.client_key
 -- JOIN dw.dim_date ddate ON dc.issued_date = ddate.full_date;
+
+---DIM K-SYMBOL---
+
+-- CREATE TABLE dw.dim_k_symbol (
+--     k_symbol_key BIGSERIAL PRIMARY KEY,
+--     k_symbol_code VARCHAR(20) UNIQUE,
+--     description VARCHAR(100),
+--     start_date DATE DEFAULT CURRENT_DATE,
+--     end_date DATE,
+--     current_flag BOOLEAN DEFAULT TRUE,
+--     etl_insert_ts TIMESTAMP DEFAULT now(),
+--     etl_batch_id INT
+-- );
+
+-- INSERT INTO dw.dim_k_symbol (k_symbol_code, etl_batch_id)
+-- SELECT DISTINCT
+--     k_symbol,
+--     1
+-- FROM staging.stg_transaction
+-- WHERE k_symbol IS NOT NULL;
+
+
 
 -- CREATE UNIQUE INDEX idx_dim_client_client_key ON dw.dim_client(client_key);
 -- CREATE UNIQUE INDEX idx_dim_account_account_key ON dw.dim_account(account_key);
