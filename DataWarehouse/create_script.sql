@@ -1,0 +1,632 @@
+-- CREATE SCHEMA source;
+-- CREATE SCHEMA staging;
+-- CREATE SCHEMA dw;
+
+-- CREATE TABLE source.district (
+--     district_id INT PRIMARY KEY,
+--     district_name VARCHAR(50),
+--     region VARCHAR(50),
+--     num_inhabitants INT,
+--     avg_salary NUMERIC,
+--     num_cities INT,
+--     unemployment_rate_95 NUMERIC,
+--     unemployment_rate_96 NUMERIC,
+--     crime_rate_95 NUMERIC,
+--     crime_rate_96 NUMERIC
+-- );
+
+-- CREATE TABLE source.client (
+--     client_id INT PRIMARY KEY,
+--     district_id INT,
+--     birth_number INT,
+--     CONSTRAINT fk_client_district
+--         FOREIGN KEY (district_id)
+--         REFERENCES source.district(district_id)
+-- );
+
+-- CREATE TABLE source.account (
+--     account_id INT PRIMARY KEY,
+--     district_id INT,
+--     date DATE,
+--     frequency VARCHAR(20),
+--     CONSTRAINT fk_account_district
+--         FOREIGN KEY (district_id)
+--         REFERENCES source.district(district_id)
+-- );
+
+-- CREATE TABLE source.disp (
+--     disp_id INT PRIMARY KEY,
+--     client_id INT,
+--     account_id INT,
+--     type VARCHAR(20),
+--     CONSTRAINT fk_disp_client
+--         FOREIGN KEY (client_id)
+--         REFERENCES source.client(client_id),
+--     CONSTRAINT fk_disp_account
+--         FOREIGN KEY (account_id)
+--         REFERENCES source.account(account_id)
+-- );
+
+-- CREATE TABLE source.card (
+--     card_id INT PRIMARY KEY,
+--     disp_id INT,
+--     type VARCHAR(20),
+--     issue_date DATE,
+--     CONSTRAINT fk_card_disp
+--         FOREIGN KEY (disp_id)
+--         REFERENCES source.disp(disp_id)
+-- );
+
+-- CREATE TABLE source.bank_transaction (
+--     trans_id INT PRIMARY KEY,
+--     account_id INT,
+--     date DATE,
+--     type VARCHAR(10),
+--     operation VARCHAR(50),
+--     amount NUMERIC,
+--     balance NUMERIC,
+--     k_symbol VARCHAR(20),
+--     bank VARCHAR(20),
+--     account VARCHAR(20),
+--     CONSTRAINT fk_transaction_account
+--         FOREIGN KEY (account_id)
+--         REFERENCES source.account(account_id)
+-- );
+
+-- CREATE TABLE source.permanent_order (
+--     order_id INT PRIMARY KEY,
+--     account_id INT,
+--     bank_to VARCHAR(20),
+--     account_to VARCHAR(20),
+--     amount NUMERIC,
+--     k_symbol VARCHAR(20),
+--     CONSTRAINT fk_order_account
+--         FOREIGN KEY (account_id)
+--         REFERENCES source.account(account_id)
+-- );
+
+-- CREATE TABLE source.loan (
+--     loan_id INT PRIMARY KEY,
+--     account_id INT,
+--     date DATE,
+--     amount NUMERIC,
+--     duration INT,
+--     payments NUMERIC,
+--     status CHAR(1),
+--     CONSTRAINT fk_loan_account
+--         FOREIGN KEY (account_id)
+--         REFERENCES source.account(account_id)
+-- );
+
+-- SELECT table_name
+-- FROM information_schema.tables
+-- WHERE table_schema = 'staging';
+
+-- CREATE TABLE staging.stg_district (
+--     district_id         INT PRIMARY KEY,
+--     district_name       VARCHAR(50),
+--     region              VARCHAR(50),
+--     num_inhabitants     INT,
+--     avg_salary          NUMERIC(12,2),
+--     num_cities          INT,
+--     num_municipalities  INT,
+--     unemployment_rate_95 NUMERIC(10,2),
+--     unemployment_rate_96 NUMERIC(10,2),
+--     crimes_95           INT,
+--     crimes_96           INT,
+--     stg_insert_ts       TIMESTAMP DEFAULT now(),
+--     stg_batch_id        INT
+-- );
+
+-- CREATE TABLE staging.stg_client (
+--     client_id    BIGINT PRIMARY KEY,
+--     district_id  INT NOT NULL,
+--     birth_number BIGINT,
+--     stg_insert_ts TIMESTAMP DEFAULT now(),
+--     stg_batch_id  INT
+-- );
+
+-- CREATE TABLE staging.stg_account (
+--     account_id      BIGINT PRIMARY KEY,
+--     district_id     INT NOT NULL,
+--     creation_date   DATE,
+--     frequency       VARCHAR(20),
+--     stg_insert_ts   TIMESTAMP DEFAULT now(),
+--     stg_batch_id    INT
+-- );
+
+-- CREATE TABLE staging.stg_disposition (
+--     disp_id     BIGINT PRIMARY KEY,
+--     client_id   BIGINT NOT NULL,
+--     account_id  BIGINT NOT NULL,
+--     type        VARCHAR(50),
+--     stg_insert_ts TIMESTAMP DEFAULT now(),
+--     stg_batch_id INT
+-- );
+
+-- CREATE TABLE staging.stg_card (
+--     card_id      BIGINT PRIMARY KEY,
+--     disp_id      BIGINT NOT NULL,
+--     card_type    VARCHAR(50),
+--     issued_date  DATE,
+--     stg_insert_ts TIMESTAMP DEFAULT now(),
+--     stg_batch_id INT
+-- );
+
+
+-- CREATE TABLE staging.stg_loan (
+--     loan_id       BIGINT PRIMARY KEY,
+--     account_id    BIGINT NOT NULL,
+--     loan_date     DATE,
+--     duration      INT,
+--     amount        NUMERIC(12,2),
+--     payment       NUMERIC(12,2),
+--     status        VARCHAR(10),
+--     status_desc   VARCHAR(20),
+--     stg_insert_ts TIMESTAMP DEFAULT now(),
+--     stg_batch_id  INT
+-- );
+
+-- CREATE TABLE staging.stg_transaction (
+--     trans_id          BIGINT PRIMARY KEY,
+--     account_id        BIGINT NOT NULL,
+--     transaction_date  DATE,
+--     operation         VARCHAR(50),
+--     amount            NUMERIC(12,2),
+--     signed_amount     NUMERIC(12,2),
+--     balance           NUMERIC(12,2),
+--     k_symbol          VARCHAR(20),
+--     bank              VARCHAR(20),
+--     account_partner   BIGINT,
+--     stg_insert_ts     TIMESTAMP DEFAULT now(),
+--     stg_batch_id      INT
+-- );
+
+-- CREATE TABLE staging.stg_order (
+--     order_id       BIGINT PRIMARY KEY,
+--     account_id     BIGINT NOT NULL,
+--     bank_to        VARCHAR(20),
+--     account_to     BIGINT,
+--     amount         NUMERIC(12,2),
+--     k_symbol       VARCHAR(20),
+--     payment_type   VARCHAR(20),
+--     stg_insert_ts  TIMESTAMP DEFAULT now(),
+--     stg_batch_id   INT
+-- );
+
+
+-- -- =========================
+-- -- 1️⃣ Load districts
+-- -- =========================
+-- INSERT INTO staging.stg_district (
+--     district_id, district_name, region, num_inhabitants, avg_salary,
+--     num_cities, num_municipalities, unemployment_rate_95, unemployment_rate_96,
+--     crimes_95, crimes_96, stg_insert_ts, stg_batch_id
+-- )
+-- SELECT
+--     a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, now(), 1
+-- FROM source.district;
+
+-- -- =========================
+-- -- 2️⃣ Load clients
+-- -- =========================
+-- INSERT INTO staging.stg_client (
+--     client_id, district_id, birth_number, stg_insert_ts, stg_batch_id
+-- )
+-- SELECT client_id, district_id, birth_number, now(), 1
+-- FROM source.client;
+
+-- -- =========================
+-- -- 3️⃣ Load accounts
+-- -- =========================
+-- INSERT INTO staging.stg_account (
+--     account_id, district_id, creation_date, frequency, stg_insert_ts, stg_batch_id
+-- )
+-- SELECT account_id, district_id, date, frequency, now(), 1
+-- FROM source.account;
+
+-- -- =========================
+-- -- 4️⃣ Load dispositions
+-- -- =========================
+-- INSERT INTO staging.stg_disposition (
+--     disp_id, client_id, account_id, type, stg_insert_ts, stg_batch_id
+-- )
+-- SELECT disp_id, client_id, account_id, type, now(), 1
+-- FROM source.disp;
+
+-- -- =========================
+-- -- 5️⃣ Load cards
+-- -- =========================
+-- INSERT INTO staging.stg_card (
+--     card_id, disp_id, card_type, issued_date, stg_insert_ts, stg_batch_id
+-- )
+-- SELECT card_id, disp_id, type, issued, now(), 1
+-- FROM source.card;
+
+-- -- =========================
+-- -- 6️⃣ Load loans
+-- -- =========================
+-- INSERT INTO staging.stg_loan (
+--     loan_id, account_id, loan_date, duration, amount, payment, status, status_desc,
+--     stg_insert_ts, stg_batch_id
+-- )
+-- SELECT loan_id, account_id, date, duration, amount, payments, status, NULL,
+--        now(), 1
+-- FROM source.loan;
+
+-- -- =========================
+-- -- 7️⃣ Load transactions (fixed)
+-- -- =========================
+-- INSERT INTO staging.stg_transaction (
+--     trans_id, account_id, transaction_date, operation, amount, signed_amount,
+--     balance, k_symbol, bank, account_partner, stg_insert_ts, stg_batch_id
+-- )
+-- SELECT
+--     trans_id,
+--     account_id,
+--     date,
+--     operation,
+--     amount,
+--     CASE WHEN operation IN ('withdrawal', 'payment') THEN -amount ELSE amount END AS signed_amount,
+--     balance,
+--     k_symbol,
+--     bank,
+--     -- try to cast account to BIGINT, NULL if not numeric
+--     CASE WHEN account ~ '^\d+$' THEN account::BIGINT ELSE NULL END AS account_partner,
+--     now(),
+--     1
+-- FROM source.bank_transaction;
+
+
+-- -- =========================
+-- -- 8️⃣ Load orders (fixed)
+-- -- =========================
+-- INSERT INTO staging.stg_order (
+--     order_id, account_id, bank_to, account_to, amount, k_symbol, payment_type,
+--     stg_insert_ts, stg_batch_id
+-- )
+-- SELECT
+--     order_id,
+--     account_id,
+--     bank_to,
+--     -- cast account_to to bigint only if numeric, else NULL
+--     CASE WHEN account_to ~ '^\d+$' THEN account_to::BIGINT ELSE NULL END AS account_to,
+--     amount,
+--     k_symbol,
+--     NULL AS payment_type,
+--     now(),
+--     1
+-- FROM source.permanent_order;
+
+-- -- =========================
+-- -- 1️⃣ DIM_DATE
+-- -- =========================
+-- CREATE TABLE dw.dim_date (
+--     date_key BIGSERIAL PRIMARY KEY,
+--     full_date DATE UNIQUE NOT NULL,
+--     day INT,
+--     month INT,
+--     quarter INT,
+--     year INT,
+--     weekday INT,
+--     is_weekend BOOLEAN
+-- );
+
+-- INSERT INTO dw.dim_date (full_date, day, month, quarter, year, weekday, is_weekend)
+-- SELECT DISTINCT
+--     transaction_date,
+--     EXTRACT(DAY FROM transaction_date)::INT,
+--     EXTRACT(MONTH FROM transaction_date)::INT,
+--     EXTRACT(QUARTER FROM transaction_date)::INT,
+--     EXTRACT(YEAR FROM transaction_date)::INT,
+--     EXTRACT(DOW FROM transaction_date)::INT,
+--     CASE WHEN EXTRACT(DOW FROM transaction_date) IN (0,6) THEN TRUE ELSE FALSE END
+-- FROM staging.stg_transaction
+-- WHERE transaction_date IS NOT NULL;
+
+-- -- =========================
+-- -- 2️⃣ DIM_DISTRICT
+-- -- =========================
+-- CREATE TABLE dw.dim_district (
+--     district_key BIGSERIAL PRIMARY KEY,
+--     district_id INT UNIQUE,
+--     district_name VARCHAR(50),
+--     region VARCHAR(50),
+--     num_inhabitants INT,
+--     avg_salary NUMERIC(12,2),
+--     num_cities INT,
+--     num_municipalities INT,
+--     unemployment_rate_95 NUMERIC(10,2),
+--     unemployment_rate_96 NUMERIC(10,2),
+--     crimes_95 INT,
+--     crimes_96 INT,
+--     start_date DATE DEFAULT CURRENT_DATE,
+--     end_date DATE,
+--     current_flag BOOLEAN DEFAULT TRUE,
+--     etl_insert_ts TIMESTAMP DEFAULT now(),
+--     etl_batch_id INT
+-- );
+
+-- INSERT INTO dw.dim_district (
+--     district_id, district_name, region, num_inhabitants, avg_salary,
+--     num_cities, num_municipalities, unemployment_rate_95, unemployment_rate_96,
+--     crimes_95, crimes_96, start_date, current_flag, etl_insert_ts, etl_batch_id
+-- )
+-- SELECT
+--     district_id, district_name, region, num_inhabitants, avg_salary,
+--     num_cities, num_municipalities, unemployment_rate_95, unemployment_rate_96,
+--     crimes_95, crimes_96, CURRENT_DATE, TRUE, now(), 1
+-- FROM staging.stg_district;
+
+-- -- =========================
+-- -- 3️⃣ DIM_CLIENT (SCD2)
+-- -- =========================
+-- CREATE TABLE dw.dim_client (
+--     client_key BIGSERIAL PRIMARY KEY,
+--     client_id BIGINT NOT NULL,
+--     district_key BIGINT REFERENCES dw.dim_district(district_key),
+--     birth_date DATE,
+--     gender CHAR(1),
+--     age_group VARCHAR(10),
+--     start_date DATE DEFAULT CURRENT_DATE,
+--     end_date DATE,
+--     current_flag BOOLEAN DEFAULT TRUE,
+--     etl_insert_ts TIMESTAMP DEFAULT now(),
+--     etl_batch_id INT
+-- );
+
+-- INSERT INTO dw.dim_client (
+--     client_id, district_key, birth_date, gender, age_group,
+--     start_date, current_flag, etl_insert_ts, etl_batch_id
+-- )
+-- SELECT
+--     sc.client_id,
+--     dd.district_key,
+--     -- Birth number → birth_date
+--     CASE
+--         WHEN sc.birth_number < 500000 THEN DATE '1900-01-01' + (sc.birth_number / 1000) * INTERVAL '1 day'
+--         ELSE DATE '1900-01-01' + ((sc.birth_number - 500000) / 1000) * INTERVAL '1 day'
+--     END AS birth_date,
+--     CASE WHEN sc.birth_number >= 500000 THEN 'F' ELSE 'M' END AS gender,
+--     -- Age group derived from birth year
+--     CASE
+--         WHEN EXTRACT(YEAR FROM (CASE WHEN sc.birth_number < 500000 THEN DATE '1900-01-01' + (sc.birth_number / 1000) * INTERVAL '1 day' ELSE DATE '1900-01-01' + ((sc.birth_number - 500000) / 1000) * INTERVAL '1 day' END)) < 1950 THEN 'Old'
+--         WHEN EXTRACT(YEAR FROM (CASE WHEN sc.birth_number < 500000 THEN DATE '1900-01-01' + (sc.birth_number / 1000) * INTERVAL '1 day' ELSE DATE '1900-01-01' + ((sc.birth_number - 500000) / 1000) * INTERVAL '1 day' END)) < 1980 THEN 'Middle'
+--         ELSE 'Young'
+--     END AS age_group,
+--     CURRENT_DATE, TRUE, now(), 1
+-- FROM staging.stg_client sc
+-- JOIN dw.dim_district dd ON sc.district_id = dd.district_id;
+
+-- -- =========================
+-- -- 4️⃣ DIM_ACCOUNT (SCD2)
+-- -- =========================
+-- CREATE TABLE dw.dim_account (
+--     account_key BIGSERIAL PRIMARY KEY,
+--     account_id BIGINT NOT NULL,
+--     district_key BIGINT REFERENCES dw.dim_district(district_key),
+--     creation_date DATE,
+--     frequency VARCHAR(20),
+--     start_date DATE DEFAULT CURRENT_DATE,
+--     end_date DATE,
+--     current_flag BOOLEAN DEFAULT TRUE,
+--     etl_insert_ts TIMESTAMP DEFAULT now(),
+--     etl_batch_id INT
+-- );
+
+-- INSERT INTO dw.dim_account (
+--     account_id, district_key, creation_date, frequency,
+--     start_date, current_flag, etl_insert_ts, etl_batch_id
+-- )
+-- SELECT
+--     sa.account_id,
+--     dd.district_key,
+--     sa.creation_date,
+--     sa.frequency,
+--     CURRENT_DATE,
+--     TRUE,
+--     now(),
+--     1
+-- FROM staging.stg_account sa
+-- JOIN dw.dim_district dd ON sa.district_id = dd.district_id;
+
+-- -- =========================
+-- -- 5️⃣ DIM_CARDTYPE
+-- -- =========================
+-- CREATE TABLE dw.dim_cardtype (
+--     card_type_key BIGSERIAL PRIMARY KEY,
+--     card_type VARCHAR(50) UNIQUE
+-- );
+
+-- INSERT INTO dw.dim_cardtype (card_type)
+-- SELECT DISTINCT card_type
+-- FROM staging.stg_card
+-- WHERE card_type IS NOT NULL;
+
+-- -- =========================
+-- -- 6️⃣ DIM_CARD (SCD2)
+-- -- =========================
+-- CREATE TABLE dw.dim_card (
+--     card_key BIGSERIAL PRIMARY KEY,
+--     card_id BIGINT NOT NULL,
+--     disp_id BIGINT,
+--     card_type_key BIGINT REFERENCES dw.dim_cardtype(card_type_key),
+--     issued_date DATE,
+--     account_key BIGINT REFERENCES dw.dim_account(account_key),
+--     client_key BIGINT REFERENCES dw.dim_client(client_key),
+--     start_date DATE DEFAULT CURRENT_DATE,
+--     end_date DATE,
+--     current_flag BOOLEAN DEFAULT TRUE,
+--     etl_insert_ts TIMESTAMP DEFAULT now(),
+--     etl_batch_id INT
+-- );
+
+-- INSERT INTO dw.dim_card (
+--     card_id, disp_id, card_type_key, issued_date, account_key, client_key,
+--     start_date, current_flag, etl_insert_ts, etl_batch_id
+-- )
+-- SELECT
+--     sc.card_id,
+--     sc.disp_id,
+--     dct.card_type_key,
+--     sc.issued_date,
+--     da.account_key,
+--     dc.client_key,
+--     CURRENT_DATE, TRUE, now(), 1
+-- FROM staging.stg_card sc
+-- JOIN dw.dim_account da ON sc.disp_id = da.account_key
+-- JOIN dw.dim_client dc ON sc.disp_id = dc.client_key
+-- JOIN dw.dim_cardtype dct ON sc.card_type = dct.card_type;
+
+-- -- =========================
+-- -- 7️⃣ DIM_LOANSTATUS
+-- -- =========================
+-- CREATE TABLE dw.dim_loanstatus (
+--     loan_status_key BIGSERIAL PRIMARY KEY,
+--     status_code VARCHAR(10) UNIQUE,
+--     description VARCHAR(50)
+-- );
+
+-- INSERT INTO dw.dim_loanstatus (status_code, description)
+-- SELECT DISTINCT status, status_desc
+-- FROM staging.stg_loan
+-- WHERE status IS NOT NULL;
+
+-- -- =========================
+-- -- 8️⃣ DIM_TRANSACTIONTYPE
+-- -- =========================
+-- CREATE TABLE dw.dim_transactiontype (
+--     transaction_type_key BIGSERIAL PRIMARY KEY,
+--     operation VARCHAR(50) UNIQUE
+-- );
+
+-- INSERT INTO dw.dim_transactiontype (operation)
+-- SELECT DISTINCT operation
+-- FROM staging.stg_transaction;
+
+-- -- =========================
+-- -- FACT_TRANSACTION
+-- -- =========================
+-- CREATE TABLE dw.fact_transaction (
+--     transaction_key BIGSERIAL PRIMARY KEY,
+--     trans_id BIGINT UNIQUE,
+--     account_key BIGINT REFERENCES dw.dim_account(account_key),
+--     client_key BIGINT REFERENCES dw.dim_client(client_key),
+--     district_key BIGINT REFERENCES dw.dim_district(district_key),
+--     transaction_type_key BIGINT REFERENCES dw.dim_transactiontype(transaction_type_key),
+--     date_key BIGINT REFERENCES dw.dim_date(date_key),
+--     amount NUMERIC(12,2),
+--     signed_amount NUMERIC(12,2),
+--     balance NUMERIC(12,2)
+-- );
+
+-- INSERT INTO dw.fact_transaction (
+--     trans_id, account_key, client_key, district_key, transaction_type_key, date_key,
+--     amount, signed_amount, balance
+-- )
+-- SELECT
+--     st.trans_id,
+--     da.account_key,
+--     dc.client_key,
+--     dd.district_key,
+--     dtt.transaction_type_key,
+--     ddate.date_key,
+--     st.amount,
+--     st.signed_amount,
+--     st.balance
+-- FROM staging.stg_transaction st
+-- JOIN dw.dim_account da ON st.account_id = da.account_id
+-- JOIN dw.dim_client dc ON da.account_key = dc.client_key
+-- JOIN dw.dim_district dd ON da.district_key = dd.district_key
+-- JOIN dw.dim_transactiontype dtt ON st.operation = dtt.operation
+-- JOIN dw.dim_date ddate ON st.transaction_date = ddate.full_date;
+
+-- -- =========================
+-- -- FACT_LOAN
+-- -- =========================
+-- CREATE TABLE dw.fact_loan (
+--     loan_key BIGSERIAL PRIMARY KEY,
+--     loan_id BIGINT UNIQUE,
+--     account_key BIGINT REFERENCES dw.dim_account(account_key),
+--     client_key BIGINT REFERENCES dw.dim_client(client_key),
+--     district_key BIGINT REFERENCES dw.dim_district(district_key),
+--     loan_status_key BIGINT REFERENCES dw.dim_loanstatus(loan_status_key),
+--     loan_date BIGINT REFERENCES dw.dim_date(date_key),
+--     amount NUMERIC(12,2),
+--     duration INT,
+--     payment NUMERIC(12,2)
+-- );
+
+-- INSERT INTO dw.fact_loan (
+--     loan_id, account_key, client_key, district_key, loan_status_key, loan_date,
+--     amount, duration, payment
+-- )
+-- SELECT
+--     sl.loan_id,
+--     da.account_key,
+--     dc.client_key,
+--     dd.district_key,
+--     dls.loan_status_key,
+--     ddate.date_key,
+--     sl.amount,
+--     sl.duration,
+--     sl.payment
+-- FROM staging.stg_loan sl
+-- JOIN dw.dim_account da ON sl.account_id = da.account_id
+-- JOIN dw.dim_client dc ON da.account_key = dc.client_key
+-- JOIN dw.dim_district dd ON da.district_key = dd.district_key
+-- JOIN dw.dim_loanstatus dls ON sl.status = dls.status_code
+-- JOIN dw.dim_date ddate ON sl.loan_date = ddate.full_date;
+
+-- -- =========================
+-- -- FACT_CARD
+-- -- =========================
+-- CREATE TABLE dw.fact_card (
+--     card_key BIGSERIAL PRIMARY KEY,
+--     card_id BIGINT UNIQUE,
+--     card_type_key BIGINT REFERENCES dw.dim_cardtype(card_type_key),
+--     issued_date BIGINT REFERENCES dw.dim_date(date_key),
+--     account_key BIGINT REFERENCES dw.dim_account(account_key),
+--     client_key BIGINT REFERENCES dw.dim_client(client_key)
+-- );
+
+-- INSERT INTO dw.fact_card (
+--     card_id, card_type_key, issued_date, account_key, client_key
+-- )
+-- SELECT
+--     dc.card_id,
+--     dct.card_type_key,
+--     ddate.date_key,
+--     da.account_key,
+--     dcl.client_key
+-- FROM staging.stg_card dc
+-- JOIN dw.dim_cardtype dct ON dc.card_type = dct.card_type
+-- JOIN dw.dim_account da ON dc.disp_id = da.account_key
+-- JOIN dw.dim_client dcl ON dc.disp_id = dcl.client_key
+-- JOIN dw.dim_date ddate ON dc.issued_date = ddate.full_date;
+
+-- CREATE UNIQUE INDEX idx_dim_client_client_key ON dw.dim_client(client_key);
+-- CREATE UNIQUE INDEX idx_dim_account_account_key ON dw.dim_account(account_key);
+-- CREATE UNIQUE INDEX idx_dim_district_district_key ON dw.dim_district(district_key);
+-- CREATE UNIQUE INDEX idx_dim_loanstatus_loan_status_key ON dw.dim_loanstatus(loan_status_key);
+-- CREATE UNIQUE INDEX idx_dim_transactiontype_transaction_type_key ON dw.dim_transactiontype(transaction_type_key);
+-- CREATE UNIQUE INDEX idx_dim_cardtype_card_type_key ON dw.dim_cardtype(card_type_key);
+-- CREATE UNIQUE INDEX idx_dim_card_card_key ON dw.dim_card(card_key);
+
+-- fact_transaction
+-- CREATE INDEX idx_fact_transaction_client_account_date 
+--     ON dw.fact_transaction(client_key, account_key, date_key);
+
+-- CREATE INDEX idx_fact_transaction_district_date 
+--     ON dw.fact_transaction(district_key, date_key);
+
+-- -- fact_loan
+-- CREATE INDEX idx_fact_loan_client_district_date 
+--     ON dw.fact_loan(client_key, district_key, loan_date);
+
+-- CREATE INDEX idx_fact_loan_account_status 
+--     ON dw.fact_loan(account_key, loan_status_key);
+
+-- -- fact_card
+-- CREATE INDEX idx_fact_card_client_account_cardtype 
+--     ON dw.fact_card(client_key, account_key, card_type_key);
