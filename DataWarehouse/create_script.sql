@@ -121,7 +121,7 @@
 -- CREATE TABLE staging.stg_client (
 --     client_id    BIGINT PRIMARY KEY,
 --     district_id  INT NOT NULL,
---     birth_number BIGINT,
+--     birth_number TEXT,
 --     stg_insert_ts TIMESTAMP DEFAULT now(),
 --     stg_batch_id  INT
 -- );
@@ -382,16 +382,25 @@
 -- SELECT
 --     sc.client_id,
 --     dd.district_key,
---     -- Birth number → birth_date
+--     -- Corrected birth_date logic
+--     MAKE_DATE(
+--         1900 + SUBSTRING(sc.birth_number, 1, 2)::int,
+--         CASE 
+--             WHEN SUBSTRING(sc.birth_number, 3, 2)::int > 50 
+--             THEN SUBSTRING(sc.birth_number, 3, 2)::int - 50
+--             ELSE SUBSTRING(sc.birth_number, 3, 2)::int
+--         END,
+--         SUBSTRING(sc.birth_number, 5, 2)::int
+--     ) AS birth_date,
+--     -- Corrected gender logic
+--     CASE 
+--         WHEN SUBSTRING(sc.birth_number, 3, 2)::int > 50 THEN 'F'
+--         ELSE 'M'
+--     END AS gender,
+--     -- Corrected age group logic
 --     CASE
---         WHEN sc.birth_number < 500000 THEN DATE '1900-01-01' + (sc.birth_number / 1000) * INTERVAL '1 day'
---         ELSE DATE '1900-01-01' + ((sc.birth_number - 500000) / 1000) * INTERVAL '1 day'
---     END AS birth_date,
---     CASE WHEN sc.birth_number >= 500000 THEN 'F' ELSE 'M' END AS gender,
---     -- Age group derived from birth year
---     CASE
---         WHEN EXTRACT(YEAR FROM (CASE WHEN sc.birth_number < 500000 THEN DATE '1900-01-01' + (sc.birth_number / 1000) * INTERVAL '1 day' ELSE DATE '1900-01-01' + ((sc.birth_number - 500000) / 1000) * INTERVAL '1 day' END)) < 1950 THEN 'Old'
---         WHEN EXTRACT(YEAR FROM (CASE WHEN sc.birth_number < 500000 THEN DATE '1900-01-01' + (sc.birth_number / 1000) * INTERVAL '1 day' ELSE DATE '1900-01-01' + ((sc.birth_number - 500000) / 1000) * INTERVAL '1 day' END)) < 1980 THEN 'Middle'
+--         WHEN (1900 + SUBSTRING(sc.birth_number, 1, 2)::int) < 1950 THEN 'Old'
+--         WHEN (1900 + SUBSTRING(sc.birth_number, 1, 2)::int) < 1980 THEN 'Middle'
 --         ELSE 'Young'
 --     END AS age_group,
 --     CURRENT_DATE, TRUE, now(), 1
